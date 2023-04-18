@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        *{
+            box-sizing: border-box;
+        }
+        html,body{
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas{
+            width: 100vw;
+            height: 100vh;
+            background-color: lightgray;
+        }
+    </style>
+</head>
+<body>
+    <canvas width="1920" height="1080"></canvas>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module">
+        let socket = io()
+
+        const canvas = document.querySelector('canvas')
+        const ctx = canvas.getContext('2d')
+
+        const speed = 5
+
+        let id
+        let keyOn = {
+            's':false,
+            'w':false,
+            'd':false,
+            'a':false
+        }
+
+        resize()
+
+        socket.on('init', e => {
+            console.log(e)
+            id = e
+        })
+
+        socket.on('render', (p) => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            console.log(p)
+            Object.keys(p).forEach((v, i) => {
+                let pos = Object.values(p)[i]
+                ctx.beginPath()
+                ctx.arc(pos[0], pos[1], 20, 0, 2 * Math.PI)
+                ctx.fill()
+                ctx.closePath()
+            })
+        })
+
+        window.addEventListener('resize', e => resize)
+
+        document.addEventListener('keydown', e => {
+            Object.keys(keyOn).includes(e.key) ? keyOn[e.key] = true : false
+        })
+        document.addEventListener('keyup', e => {
+            Object.keys(keyOn).includes(e.key) ? keyOn[e.key] = false : false
+        })
+
+        function updatePos(dx, dy){
+            socket.emit('update', [dx*speed, dy*speed])
+        }
+
+        function resize(){
+            canvas.width = window.innerWidth
+            canvas.height = window.innerHeight
+        }
+
+        loop()
+        function loop(){
+            Object.values(keyOn).forEach((v, i) => {
+                if(v){
+                    updatePos((Math.floor(i/2)) * -(i%2 ? 1 : -1), (Math.floor(i/2) ? 0 : 1) * -(i%2 ? 1 : -1))
+                }
+            })
+            requestAnimationFrame(loop)
+        }
+    </script>
+</body>
+</html>
