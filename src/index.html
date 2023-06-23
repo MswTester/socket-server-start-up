@@ -1,90 +1,148 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
     <style>
-        *{
-            box-sizing: border-box;
-        }
-        html,body{
-            margin: 0;
-            overflow: hidden;
-        }
-        canvas{
-            width: 100vw;
-            height: 100vh;
-            background-color: lightgray;
-        }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        width: 100vw;
+        height: 100vh;
+        background-color: lightgray;
+      }
+      .hide {
+        display: none;
+      }
     </style>
-</head>
-<body>
-    <canvas width="1920" height="1080"></canvas>
+  </head>
+  <body>
+    <div class="container">
+      <h1>써누의 마을</h1>
+      <input type="text" name="" id="" placeholder="닉넴을 입력하셈ㅋ" />
+      <button>플레이</button>
+    </div>
+    <canvas class="hide" width="1920" height="1080"></canvas>
     <script src="/socket.io/socket.io.js"></script>
     <script type="module">
-        let socket = io()
+      let socket = io();
 
-        const canvas = document.querySelector('canvas')
-        const ctx = canvas.getContext('2d')
+      const canvas = document.querySelector("canvas");
+      const ctx = canvas.getContext("2d");
+      const inp = document.querySelector("input");
+      const btn = document.querySelector("button");
+      const container = document.querySelector("div.container");
 
-        const speed = 5
+      const speed = 5;
 
-        let id
-        let keyOn = {
-            's':false,
-            'w':false,
-            'd':false,
-            'a':false
+      let id;
+      let pl = {};
+      let keyOn = {
+        s: false,
+        w: false,
+        d: false,
+        a: false,
+      };
+
+      resize();
+
+      btn.addEventListener("click", (e) => {
+        socket.emit("login", inp.value);
+      });
+
+      inp.addEventListener("keypress", (e) => {
+        e.code == "Enter" ? socket.emit("login", inp.value) : false;
+      });
+
+      socket.on("init", (e) => {
+        console.log(e);
+        id = e;
+      });
+
+      socket.on("logged", (v) => {
+        canvas.classList.remove("hide");
+        container.classList.add("hide");
+        inp.value = "";
+        document.addEventListener("keydown", (e) => {
+          Object.keys(keyOn).includes(e.key) ? (keyOn[e.key] = true) : false;
+        });
+        document.addEventListener("keyup", (e) => {
+          Object.keys(keyOn).includes(e.key) ? (keyOn[e.key] = false) : false;
+        });
+        canvas.addEventListener("mousedown", (e) => {
+          let dx = e.offsetX - pl[id][0];
+          let dy = e.offsetY - pl[id][1];
+          socket.emit("createBullet", [
+            dy / dx,
+            dy / dx < 0 ? (dx > dy ? 1 : -1) : dx < 0 && dy < 0 ? -1 : 1,
+          ]);
+        });
+      });
+
+      socket.on("render", (p) => {
+        if (p[0][id][3] <= 0) {
+          socket.emit("die", "");
+          canvas.classList.add("hide");
+          container.classList.remove("hide");
+        } else {
+          pl = p[0];
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          Object.keys(p[0]).forEach((v, i) => {
+            let pos = Object.values(p[0])[i];
+            ctx.beginPath();
+            ctx.fillStyle = id == v ? "red" : "black";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.arc(pos[0], pos[1], 20, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.closePath();
+            ctx.font = "24px Arial";
+            ctx.fillText(pos[2], pos[0], pos[1] - 45);
+            ctx.fillStyle = "green";
+            ctx.fillRect(pos[0] - pos[3] / 4, pos[1] - 32, pos[3] / 2, 5);
+          });
+          Object.keys(p[2]).forEach((v, i) => {
+            let pos = Object.values(p[2])[i];
+            ctx.fillStyle = "yellow";
+            ctx.beginPath();
+            ctx.arc(pos[0], pos[1], 3, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.closePath();
+          });
         }
+      });
 
-        resize()
+      window.addEventListener("resize", resize);
 
-        socket.on('init', e => {
-            console.log(e)
-            id = e
-        })
+      function updatePos(dx, dy) {
+        socket.emit("update", [dx * speed, dy * speed]);
+      }
 
-        socket.on('render', (p) => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height)
-            console.log(p)
-            Object.keys(p).forEach((v, i) => {
-                let pos = Object.values(p)[i]
-                ctx.beginPath()
-                ctx.arc(pos[0], pos[1], 20, 0, 2 * Math.PI)
-                ctx.fill()
-                ctx.closePath()
-            })
-        })
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
 
-        window.addEventListener('resize', e => resize)
-
-        document.addEventListener('keydown', e => {
-            Object.keys(keyOn).includes(e.key) ? keyOn[e.key] = true : false
-        })
-        document.addEventListener('keyup', e => {
-            Object.keys(keyOn).includes(e.key) ? keyOn[e.key] = false : false
-        })
-
-        function updatePos(dx, dy){
-            socket.emit('update', [dx*speed, dy*speed])
-        }
-
-        function resize(){
-            canvas.width = window.innerWidth
-            canvas.height = window.innerHeight
-        }
-
-        loop()
-        function loop(){
-            Object.values(keyOn).forEach((v, i) => {
-                if(v){
-                    updatePos((Math.floor(i/2)) * -(i%2 ? 1 : -1), (Math.floor(i/2) ? 0 : 1) * -(i%2 ? 1 : -1))
-                }
-            })
-            requestAnimationFrame(loop)
-        }
+      loop();
+      function loop() {
+        Object.values(keyOn).forEach((v, i) => {
+          if (v) {
+            updatePos(
+              Math.floor(i / 2) * -(i % 2 ? 1 : -1),
+              (Math.floor(i / 2) ? 0 : 1) * -(i % 2 ? 1 : -1)
+            );
+          }
+        });
+        requestAnimationFrame(loop);
+      }
     </script>
-</body>
+  </body>
 </html>
